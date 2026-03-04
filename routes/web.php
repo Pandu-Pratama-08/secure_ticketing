@@ -7,6 +7,13 @@ use App\Http\Controllers\XSSLabController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\SecurityTestController;
 use App\Http\Controllers\ValidationLabController;
+use App\Http\Controllers\CsrfLabController;
+use App\Http\Controllers\SqliLabController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\VulnerableAuth\VulnerableLoginController;
+use App\Http\Controllers\VulnerableAuth\VulnerableRegisterController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -22,7 +29,7 @@ use App\Http\Controllers\ValidationLabController;
 // ============================================
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('home');
 });
 
 // Route sederhana dengan Closure
@@ -43,13 +50,13 @@ Route::get('/api/status', function () {
 // RESOURCE ROUTES - TICKETS
 // ============================================
 Route::resource('tickets', TicketController::class)-> middleware('auth');
-// Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
-// Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
-// Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
-// Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-// Route::get('/tickets/{ticket}/edit', [TicketController::class, 'edit'])->name('tickets.edit');
-// Route::put('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
-// Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
+Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+Route::get('/tickets/{ticket}/edit', [TicketController::class, 'edit'])->name('tickets.edit');
+Route::put('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
+Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
 
 
 // =========================================
@@ -173,4 +180,191 @@ Route::prefix('validation-lab')->name('validation-lab.')->group(function () {
         ->name('secure.submit');
     Route::post('/secure/clear', [ValidationLabController::class, 'secureClear'])
         ->name('secure.clear');
+});
+
+Route::prefix('csrf-lab')->name('csrf-lab.')->group(function () {
+    // Index - Menu Lab
+    Route::get('/', [CsrfLabController::class, 'index'])
+        ->name('index');
+
+    // How It Works - Penjelasan CSRF
+    Route::get('/how-it-works', [CsrfLabController::class, 'howItWorks'])
+        ->name('how-it-works');
+
+    // Attack Demo - Simulasi serangan
+    Route::get('/attack-demo', [CsrfLabController::class, 'attackDemo'])
+        ->name('attack-demo');
+
+    // Protection Demo - Demo protection
+    Route::get('/protection-demo', [CsrfLabController::class, 'protectionDemo'])
+        ->name('protection-demo');
+
+    // AJAX Demo - CSRF untuk AJAX
+    Route::get('/ajax-demo', [CsrfLabController::class, 'ajaxDemo'])
+        ->name('ajax-demo');
+
+    // ----- ACTION ROUTES -----
+
+    // Secure transfer (dengan CSRF protection normal)
+    Route::post('/secure-transfer', [CsrfLabController::class, 'secureTransfer'])
+        ->name('secure-transfer');
+
+    // Protected action
+    Route::post('/protected-action', [CsrfLabController::class, 'protectedAction'])
+        ->name('protected-action');
+
+    // AJAX action
+    Route::post('/ajax-action', [CsrfLabController::class, 'ajaxAction'])
+        ->name('ajax-action');
+
+    // Reset demo data
+    Route::post('/reset', [CsrfLabController::class, 'resetDemo'])
+        ->name('reset');
+});
+
+// ================================================================
+// VULNERABLE ROUTE (untuk demo - di-exclude dari CSRF middleware)
+// ⚠️ JANGAN GUNAKAN PATTERN INI DI PRODUCTION!
+// ================================================================
+// Route ini perlu di-exclude dari VerifyCsrfToken middleware
+// untuk demonstrasi serangan CSRF
+//
+// NOTE: Di Laravel 11+, gunakan Illuminate\Foundation\Http\Middleware
+// karena App\Http\Middleware\VerifyCsrfToken tidak ada by default
+Route::post('/csrf-lab/vulnerable-transfer', [CsrfLabController::class, 'vulnerableTransfer'])
+    ->name('csrf-lab.vulnerable-transfer')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+// Route untuk demo PROTECTED transfer (DENGAN CSRF - akan return 419 jika tanpa token)
+Route::post('/csrf-lab/protected-transfer', [CsrfLabController::class, 'protectedTransfer'])
+    ->name('csrf-lab.protected-transfer');
+
+
+Route::prefix('sqli-lab')->name('sqli-lab.')->group(function () {
+
+    // Menu utama
+    Route::get('/', [SqliLabController::class, 'index'])->name('index');
+
+    // Halaman edukasi
+    Route::get('/how-it-works', [SqliLabController::class, 'howItWorks'])->name('how-it-works');
+    Route::get('/cheatsheet', [SqliLabController::class, 'cheatsheet'])->name('cheatsheet');
+
+    // ============================================
+    // VULNERABLE ENDPOINTS (UNTUK DEMO)
+    // ============================================
+    // PERINGATAN: Endpoint ini SENGAJA VULNERABLE!
+    // Hanya untuk pembelajaran - JANGAN gunakan di production!
+
+    // Vulnerable Search - String concatenation
+    Route::get('/vulnerable-search', [SqliLabController::class, 'vulnerableSearch'])
+        ->name('vulnerable-search');
+
+    // Vulnerable Login - Authentication bypass
+    Route::get('/vulnerable-login', [SqliLabController::class, 'vulnerableLogin'])
+        ->name('vulnerable-login');
+    Route::post('/vulnerable-login', [SqliLabController::class, 'vulnerableLoginSubmit'])
+        ->name('vulnerable-login-submit');
+
+    // Blind SQL Injection Demo
+    Route::get('/blind-sqli', [SqliLabController::class, 'blindSqli'])
+        ->name('blind-sqli');
+    Route::post('/blind-sqli/boolean', [SqliLabController::class, 'blindSqliBooleanCheck'])
+        ->name('blind-sqli-boolean');
+    Route::post('/blind-sqli/time', [SqliLabController::class, 'blindSqliTimeCheck'])
+        ->name('blind-sqli-time');
+
+    // ============================================
+    // SECURE ENDPOINTS (BEST PRACTICE)
+    // ============================================
+
+    // Secure Search - 4 metode aman
+    Route::get('/secure-search', [SqliLabController::class, 'secureSearch'])
+        ->name('secure-search');
+
+    // ============================================
+    // UTILITY ROUTES
+    // ============================================
+
+    // Seed demo data
+    Route::get('/seed-data', [SqliLabController::class, 'seedData'])
+        ->name('seed');
+
+    // Reset data
+    Route::get('/reset-data', [SqliLabController::class, 'resetData'])
+        ->name('reset');
+});
+
+// ============================================================================
+// Auth Lab Pages
+// ============================================================================
+Route::prefix('auth-lab')->name('auth-lab.')->group(function () {
+    Route::get('/', function () {
+        return view('auth-lab.index');
+    })->name('index');
+
+    Route::get('/comparison', function () {
+        return view('auth-lab.comparison');
+    })->name('comparison');
+});
+
+// ============================================================================
+// Secure Dashboard (Requires Auth)
+// ============================================================================
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', function () {
+        return view('auth.dashboard');
+    })->name('dashboard');
+});
+
+// ============================================================================
+// VULNERABLE Authentication Routes (Demo Only)
+// ============================================================================
+Route::prefix('vulnerable')->name('vulnerable.')->group(function () {
+
+    // Login - No middleware protection
+    Route::get('/login', [VulnerableLoginController::class, 'create'])
+        ->name('login');
+    Route::post('/login', [VulnerableLoginController::class, 'store'])
+        ->name('login.submit');
+
+    // Register - No middleware protection
+    Route::get('/register', [VulnerableRegisterController::class, 'create'])
+        ->name('register');
+    Route::post('/register', [VulnerableRegisterController::class, 'store'])
+        ->name('register.submit');
+
+    // Dashboard - Uses session instead of auth middleware
+    Route::get('/dashboard', function () {
+        if (!session()->has('vulnerable_user')) {
+            return redirect()->route('vulnerable.login');
+        }
+        // Pass user from session to view
+        return view('vulnerable-auth.dashboard', [
+            'user' => session('vulnerable_user'),
+        ]);
+    })->name('dashboard');
+
+    // Logout
+    Route::post('/logout', [VulnerableLoginController::class, 'destroy'])
+        ->name('logout');
+
+    // DEMO: Show all users (Vulnerable - information disclosure)
+    Route::get('/show-users', [VulnerableRegisterController::class, 'showUsers'])
+        ->name('show-users');
+
+    // DEMO: Brute force statistics
+    Route::get('/brute-force-stats', [VulnerableLoginController::class, 'bruteForceStats'])
+        ->name('brute-force-stats');
+});
+
+// ============================================================================
+// Secure Auth Routes (Laravel Breeze)
+// ============================================================================
+// 
+
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [LoginController::class, 'create'])->name('login');
+    Route::post('/login', [LoginController::class, 'store'])->name('login.submit');
+    Route::get('/register', [RegisterController::class, 'create'])->name('register');
+    Route::post('/register', [RegisterController::class, 'store'])->name('register.submit');
 });
