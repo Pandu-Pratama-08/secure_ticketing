@@ -4,46 +4,47 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Migration untuk Authentication Lab
- *
- * Membuat tabel tambahan untuk demo Auth Lab:
- * - vulnerable_users: untuk demo vulnerable auth (password plaintext)
- * - login_attempts: untuk tracking login attempts
- *
- * Note: Tabel users, password_reset_tokens, sessions sudah dibuat
- * oleh migration default Laravel (0001_01_01_000000_create_users_table.php)
- */
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        // ============================================
-        // VULNERABLE: Users table dengan password PLAINTEXT
-        // HANYA UNTUK DEMO - JANGAN GUNAKAN DI PRODUCTION!
-        // ============================================
-        Schema::create('vulnerable_users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('password'); // PLAINTEXT - VULNERABLE!
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->enum('role', ['admin', 'staff', 'user'])->default('user');
+            $table->rememberToken();
             $table->timestamps();
         });
 
-        // Login attempts tracking untuk comparison
-        Schema::create('login_attempts', function (Blueprint $table) {
-            $table->id();
-            $table->string('email');
-            $table->string('ip_address', 45);
-            $table->boolean('successful')->default(false);
-            $table->string('type'); // 'secure' atau 'vulnerable'
-            $table->timestamps();
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('sessions', function (Blueprint $table) {
+            $table->string('id')->primary();
+            $table->foreignId('user_id')->nullable()->index();
+            $table->string('ip_address', 45)->nullable();
+            $table->text('user_agent')->nullable();
+            $table->longText('payload');
+            $table->integer('last_activity')->index();
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('login_attempts');
-        Schema::dropIfExists('vulnerable_users');
+        Schema::dropIfExists('users');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('sessions');
     }
 };

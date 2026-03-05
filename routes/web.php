@@ -1,19 +1,31 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TicketController;
-use App\Http\Controllers\DemoBladeController;
-use App\Http\Controllers\XSSLabController;
 use App\Http\Controllers\CommentController;
-use App\Http\Controllers\SecurityTestController;
-use App\Http\Controllers\ValidationLabController;
 use App\Http\Controllers\CsrfLabController;
+use App\Http\Controllers\DemoBladeController;
+use App\Http\Controllers\SecurityTestController;
 use App\Http\Controllers\SqliLabController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\ValidationLabController;
+use App\Http\Controllers\XSSLabController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\VulnerableAuth\VulnerableLoginController;
 use App\Http\Controllers\VulnerableAuth\VulnerableRegisterController;
+use App\Http\Controllers\Lab\SecureController;
+use App\Http\Controllers\Lab\VulnerableController;
 
+// Route::get('/dashboard', function () {
+//     return view('dashboard');
+// })->middleware(['auth', 'verified'])->name('dashboard');
+
+// Route::middleware('auth')->group(function () {
+//     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+//     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+//     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+// });
 
 /*
 |--------------------------------------------------------------------------
@@ -49,19 +61,81 @@ Route::get('/api/status', function () {
 // ============================================
 // RESOURCE ROUTES - TICKETS
 // ============================================
-Route::resource('tickets', TicketController::class)-> middleware('auth');
-Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
-Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
-Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
-Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-Route::get('/tickets/{ticket}/edit', [TicketController::class, 'edit'])->name('tickets.edit');
-Route::put('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
-Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
 
+// MINGGU 4 HARI 2: Tickets sekarang dilindungi dengan 'auth' middleware
+// Authorization detail ditangani oleh TicketPolicy
+Route::middleware('auth')->group(function () {
+    // Route::resource() otomatis membuat 7 routes:
+    // GET    /tickets           → TicketController@index    (tickets.index)
+    // GET    /tickets/create    → TicketController@create   (tickets.create)
+    // POST   /tickets           → TicketController@store    (tickets.store)
+    // GET    /tickets/{ticket}  → TicketController@show     (tickets.show)
+    // GET    /tickets/{ticket}/edit → TicketController@edit (tickets.edit)
+    // PUT    /tickets/{ticket}  → TicketController@update   (tickets.update)
+    // DELETE /tickets/{ticket}  → TicketController@destroy  (tickets.destroy)
+    Route::resource('tickets', TicketController::class);
+
+    // Route tambahan untuk update status (Admin/Staff)
+    Route::patch('/tickets/{ticket}/status', [TicketController::class, 'updateStatus'])
+        ->name('tickets.update-status');
+
+    // Route untuk assign ticket ke staff (Admin only)
+    Route::patch('/tickets/{ticket}/assign', [TicketController::class, 'assign'])
+        ->name('tickets.assign');
+});
+
+// ============================================
+// ADMIN ROUTES - Protected by Role Middleware
+// MINGGU 4 HARI 2: Authorization Implementation
+// ============================================
+use App\Http\Controllers\AdminController;
+
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->group(function () {
+    // Admin Dashboard - Overview statistics
+    Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // User Management - List all users
+    Route::get('/users', [AdminController::class, 'users'])->name('users');
+
+    // All Tickets - Admin view with filters
+    Route::get('/tickets', [AdminController::class, 'allTickets'])->name('tickets');
+
+    // Assign ticket to staff
+    Route::post('/tickets/{ticket}/assign', [AdminController::class, 'assignTicket'])
+        ->name('tickets.assign');
+});
+
+// Reports - Accessible by Admin & Staff
+Route::get('/reports', [AdminController::class, 'reports'])
+    ->middleware(['auth', 'role:staff,admin'])
+    ->name('admin.reports');
+
+// ============================================
+// ALTERNATIVE: ROUTES MANUAL
+// ============================================
+// Jika ingin mendefinisikan secara manual:
+//
+// Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+// Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+// Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+// Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+// Route::get('/tickets/{ticket}/edit', [TicketController::class, 'edit'])->name('tickets.edit');
+// Route::put('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
+// Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
+
+/*
+|--------------------------------------------------------------------------
+| Routes untuk Hari 4 - Blade Templating & XSS Prevention
+|--------------------------------------------------------------------------
+|
+| Tambahkan routes ini ke file routes/web.php di proyek Laravel Anda
+|
+*/
 
 // =========================================
 // DEMO BLADE TEMPLATING
 // =========================================
+
 Route::prefix('demo-blade')->name('demo-blade.')->group(function () {
     Route::get('/', [DemoBladeController::class, 'index'])->name('index');
     Route::get('/directives', [DemoBladeController::class, 'directives'])->name('directives');
@@ -73,6 +147,7 @@ Route::prefix('demo-blade')->name('demo-blade.')->group(function () {
 // =========================================
 // XSS LAB - VULNERABLE & SECURE
 // =========================================
+
 Route::prefix('xss-lab')->name('xss-lab.')->group(function () {
     Route::get('/', [XSSLabController::class, 'index'])->name('index');
 
@@ -108,28 +183,12 @@ Route::prefix('xss-lab')->name('xss-lab.')->group(function () {
 // =========================================
 // Nested routes untuk comments di bawah tickets
 
-// Route::middleware('auth')->group(function () {
-//     // Store comment (POST)
-//     Route::post('/tickets/{ticket}/comments', [CommentController::class, 'store'])
-//         ->name('comments.store');
-
-//     // Delete comment (DELETE)
-//     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
-//         ->name('comments.destroy');
-
-//     // Update comment (optional) - (PUT/PATCH)
-//     Route::put('/comments/{comment}', [CommentController::class, 'update'])
-//         ->name('comments.update');
-// });
-
 // Store comment (POST)
 Route::post('/tickets/{ticket}/comments', [CommentController::class, 'store'])
     ->name('comments.store');
-
 // Delete comment (DELETE)
 Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
     ->name('comments.destroy');
-
 // Update comment (optional) - (PUT/PATCH)
 Route::put('/comments/{comment}', [CommentController::class, 'update'])
     ->name('comments.update');
@@ -158,6 +217,9 @@ Route::prefix('security-testing')->name('security-testing.')->group(function () 
     Route::get('/audit', [SecurityTestController::class, 'auditChecklist'])->name('audit');
 });
 
+// ================================================================
+// VALIDATION LAB ROUTES
+// ================================================================
 Route::prefix('validation-lab')->name('validation-lab.')->group(function () {
     // Index - Menu Lab
     Route::get('/', [ValidationLabController::class, 'index'])
@@ -182,6 +244,26 @@ Route::prefix('validation-lab')->name('validation-lab.')->group(function () {
         ->name('secure.clear');
 });
 
+// ================================================================
+// TICKET CRUD ROUTES
+// ================================================================
+// Menggunakan Resource Controller dengan Form Request validation
+// Store: StoreTicketRequest
+// Update: UpdateTicketRequest
+// Route::resource('tickets', TicketController::class);
+
+// ================================================================
+// API DEMO (untuk demo bypass dengan curl/Postman)
+// ================================================================
+Route::prefix('api')->group(function () {
+    // Vulnerable endpoint - tanpa CSRF dan validation
+    Route::post('/vulnerable-submit', [ValidationLabController::class, 'apiVulnerable'])
+        ->withoutMiddleware(['web']);
+});
+
+// ================================================================
+// CSRF LAB ROUTES
+// ================================================================
 Route::prefix('csrf-lab')->name('csrf-lab.')->group(function () {
     // Index - Menu Lab
     Route::get('/', [CsrfLabController::class, 'index'])
@@ -228,9 +310,6 @@ Route::prefix('csrf-lab')->name('csrf-lab.')->group(function () {
 // ================================================================
 // Route ini perlu di-exclude dari VerifyCsrfToken middleware
 // untuk demonstrasi serangan CSRF
-//
-// NOTE: Di Laravel 11+, gunakan Illuminate\Foundation\Http\Middleware
-// karena App\Http\Middleware\VerifyCsrfToken tidak ada by default
 Route::post('/csrf-lab/vulnerable-transfer', [CsrfLabController::class, 'vulnerableTransfer'])
     ->name('csrf-lab.vulnerable-transfer')
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
@@ -239,7 +318,9 @@ Route::post('/csrf-lab/vulnerable-transfer', [CsrfLabController::class, 'vulnera
 Route::post('/csrf-lab/protected-transfer', [CsrfLabController::class, 'protectedTransfer'])
     ->name('csrf-lab.protected-transfer');
 
-
+// ============================================
+// SQL INJECTION LAB ROUTES
+// ============================================
 Route::prefix('sqli-lab')->name('sqli-lab.')->group(function () {
 
     // Menu utama
@@ -294,8 +375,19 @@ Route::prefix('sqli-lab')->name('sqli-lab.')->group(function () {
         ->name('reset');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes - Authentication Lab (Minggu 4 Hari 1)
+|--------------------------------------------------------------------------
+|
+| Lab ini berisi routes untuk implementasi authentication:
+| - Secure: Menggunakan Laravel Breeze (routes/auth.php)
+| - Vulnerable: Login/Register dengan kerentanan untuk demonstrasi
+|
+*/
+
 // ============================================================================
-// Auth Lab Pages
+// Auth Lab Pages (Minggu 4 Hari 1 - Authentication)
 // ============================================================================
 Route::prefix('auth-lab')->name('auth-lab.')->group(function () {
     Route::get('/', function () {
@@ -305,6 +397,23 @@ Route::prefix('auth-lab')->name('auth-lab.')->group(function () {
     Route::get('/comparison', function () {
         return view('auth-lab.comparison');
     })->name('comparison');
+});
+
+// ============================================================================
+// Authorization Lab Pages (Minggu 4 Hari 2 - Authorization)
+// ============================================================================
+Route::prefix('authorization-lab')->name('authorization-lab.')->group(function () {
+    Route::get('/', function () {
+        return view('authorization-lab.index');
+    })->name('index');
+
+    Route::get('/login', function () {
+        return view('authorization-lab.login');
+    })->name('login');
+
+    Route::get('/implementation', function () {
+        return view('authorization-lab.implementation');
+    })->name('implementation');
 });
 
 // ============================================================================
@@ -335,9 +444,10 @@ Route::prefix('vulnerable')->name('vulnerable.')->group(function () {
 
     // Dashboard - Uses session instead of auth middleware
     Route::get('/dashboard', function () {
-        if (!session()->has('vulnerable_user')) {
+        if (! session()->has('vulnerable_user')) {
             return redirect()->route('vulnerable.login');
         }
+
         // Pass user from session to view
         return view('vulnerable-auth.dashboard', [
             'user' => session('vulnerable_user'),
@@ -358,13 +468,79 @@ Route::prefix('vulnerable')->name('vulnerable.')->group(function () {
 });
 
 // ============================================================================
-// Secure Auth Routes (Laravel Breeze)
+// Secure Auth Routes
 // ============================================================================
-// 
-
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->name('login.submit');
     Route::get('/register', [RegisterController::class, 'create'])->name('register');
     Route::post('/register', [RegisterController::class, 'store'])->name('register.submit');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+});
+
+Route::prefix('bac-lab')->name('bac-lab.')->group(function () {
+
+    // Lab Index - Overview & Pilihan Secure/Vulnerable (public)
+    Route::get('/', function () {
+        return view('bac-lab.index');
+    })->name('home');
+
+    // Comparison Page (public)
+    Route::get('/comparison', function () {
+        return view('bac-lab.comparison');
+    })->name('comparison');
+
+    // Login Pages untuk masing-masing versi (public)
+    Route::get('/vulnerable/login', function () {
+        return view('bac-lab.vulnerable.login');
+    })->name('vulnerable.login');
+
+    Route::get('/secure/login', function () {
+        return view('bac-lab.secure.login');
+    })->name('secure.login');
+});
+
+// Protected routes (perlu login untuk demo)
+Route::middleware('auth')->prefix('bac-lab')->name('bac-lab.')->group(function () {
+
+    // ========================================
+    // VULNERABLE VERSION (IDOR Demo)
+    // ========================================
+    // ⚠️ Route ini SENGAJA dibuat vulnerable untuk demonstrasi
+    // JANGAN gunakan pattern ini di production!
+
+    Route::prefix('vulnerable')->name('vulnerable.')->group(function () {
+
+        Route::get('/tickets', [VulnerableController::class, 'index'])
+            ->name('tickets.index');
+
+        Route::get('/tickets/{id}', [VulnerableController::class, 'show'])
+            ->name('tickets.show');
+
+        Route::get('/tickets/{id}/edit', [VulnerableController::class, 'edit'])
+            ->name('tickets.edit');
+
+        Route::put('/tickets/{id}', [VulnerableController::class, 'update'])
+            ->name('tickets.update');
+
+        Route::delete('/tickets/{id}', [VulnerableController::class, 'destroy'])
+            ->name('tickets.destroy');
+    });
+
+    // ========================================
+    // SECURE VERSION (dengan Policy)
+    // ========================================
+    // ✅ Route ini menggunakan Policy untuk authorization
+    // GUNAKAN pattern ini di production!
+
+    Route::prefix('secure')->name('secure.')->group(function () {
+
+        // Resource route dengan route model binding
+        // Policy akan otomatis di-check via authorizeResource()
+        Route::resource('tickets', SecureController::class)
+            ->parameters(['tickets' => 'ticket']);
+    });
 });
